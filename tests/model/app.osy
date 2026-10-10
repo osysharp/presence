@@ -1,0 +1,42 @@
+namespace CollaborationKitTests;
+
+using Osysharp.Identity;
+using Osysharp.Presence;
+using Osysharp.Observability;
+
+[Role] enum DeskRole { Authenticator, Staff, Customer }
+
+policy IsStaff => RoleGrant.Any(g => g.Member == user && g.Role == DeskRole.Staff);
+/// The kit's one question, answered by the app: staff see each other on a record; a customer never does.
+policy CollaboratesOnRecords => IsStaff;
+
+/// The app's own kind of account — signs in with a code, which is all a test needs.
+entity Person : Principal {
+  [MaxLength(200)] string CodeHash = "";
+  security {
+    allow read when IsAuthenticated || IsAuthenticator;
+    allow create when IsAuthenticator;
+    deny read CodeHash when !IsAuthenticator;
+  }
+}
+
+/// Any record — the kit never knows which. `[ConcurrencyCheck]` refuses a save over somebody else's newer one.
+[ConcurrencyCheck]
+entity Case {
+  [Required("Every case needs a reference."), MaxLength(40)] string Reference;
+  decimal Amount;
+  [MaxLength(2000)] string Notes = "";
+  security { allow read, create, update when IsStaff; }
+}
+
+[AuthMethod]
+string SignInWithCode(string email, string code) {
+  var p = Person.FirstOrDefault(x => x.Email == NormalisedEmail(email));
+  if (p == null || !p.IsActive) { Security.VerifyPassword(code); return ""; }
+  if (!Security.VerifyPassword(code, p.CodeHash)) { return ""; }
+  return Security.IssueJwt(p.Id, p.Email);
+}
+
+app.AuthBootstrap = new AuthBootstrap { Role = DeskRole.Authenticator, Login = SignInWithCode };
+app.Auth = new PasswordAuth { LoginField = Email, PasswordField = CodeHash };
+app.Audit = new AuditConfig { Redact = new AuditRedaction { Properties = [CollaborationKitTests.Person.CodeHash] } };

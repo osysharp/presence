@@ -1,0 +1,17 @@
+// The test desk's door — both ways, and the unknown address failing exactly like a wrong code.
+
+using CollaborationKitTests;
+
+[Test(Desk)]
+void the_sign_in_admits_a_right_code_and_refuses_everything_else() {
+  Assert.NotEqual("", SignInWithCode("ada@desk.test", "1111"));
+  Assert.Equal("", SignInWithCode("ada@desk.test", "9999"));
+  Assert.Equal("", SignInWithCode("nobody@desk.test", "1111"));
+}
+
+[Test(Desk)]
+void the_case_list_opens_and_lists_the_cases() {
+  Ui.SignInAs(Person.Single(p => p.Email == "ada@desk.test"));
+  Ui.Visit("/");
+  Assert.Visible("C-1");
+}

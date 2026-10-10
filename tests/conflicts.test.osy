@@ -1,0 +1,61 @@
+// Osysharp.Presence — the "moved first" sentence. A refusal says THAT somebody got there first; the person in front
+// of the screen is told WHO, WHAT and WHEN, and keeps their edit.
+
+using Osysharp.Identity;
+using Osysharp.Presence;
+using Osysharp.Observability;
+using CollaborationKitTests;
+
+[Test]
+void the_sentence_names_who_which_fields_and_how_long_ago() {
+  var now = new DateTime(2026, 10, 1, 12, 0, 0);
+  Assert.Equal("just now", Ago(now.AddSeconds(-10), now));
+  Assert.Equal("a minute ago", Ago(now.AddSeconds(-70), now));
+  Assert.Equal("12 minutes ago", Ago(now.AddMinutes(-12), now));
+  Assert.Equal("3 hours ago", Ago(now.AddHours(-3), now));
+  Assert.Equal("Ines took this 2 minutes ago", TookFirst("Ines", now.AddMinutes(-2), now: now));
+  Assert.Equal("Somebody took this just now", TookFirst("", now, now: now));
+}
+
+[Test]
+void with_no_change_to_name_it_says_so_in_the_apps_words() {
+  Assert.Equal("Somebody changed this while you had it open", MovedFirst(new List<EntityChange>()));
+  Assert.Equal("Refreshed under you", MovedFirst(new List<EntityChange>(), "Refreshed under you"));
+}
+
+[Test(Desk)]
+void a_save_after_somebody_else_saved_is_refused_and_says_so_in_the_kits_words() {
+  var id = Guid.Empty;
+  runas (Ada) { id = Case.Single(x => x.Reference == "C-1").Id; }
+  Ui.SignInAs(Person.Single(p => p.Email == "ada@desk.test"));
+  Ui.Visit($"/case/{id}");
+  Assert.Visible("C-1");
+
+  // ⚑ THE COLLEAGUE IS ANOTHER CONTEXT. Raj's save runs in the test body, not on Ada's page: a write made through Ada's
+  //   own page (even through a server function) is her page's own unit of work, which then legitimately believes the
+  //   new value — that is not a conflict, and staging it that way would prove nothing.
+  runas (Raj) { SomebodyElseSaves(id, 900); }
+
+  Ui.Click("Add one");                       // Ada's page still believes 100
+  Assert.Visible("— your edit is still here.");
+  Assert.Hidden("Saved.");
+  // ⛔ AND THE COLLEAGUE'S VALUE STANDS. A refusal that still wrote would be worse than no guard.
+  runas (Ada) { Assert.Equal(900, Case.Single(x => x.Reference == "C-1").Amount); }
+}
+
+[Test(Desk)]
+void the_sentence_names_who_changed_the_record_from_the_trail() {
+  var id = Guid.Empty;
+  runas (Ada) { id = Case.Single(x => x.Reference == "C-1").Id; }
+  Ui.SignInAs(Person.Single(p => p.Email == "ada@desk.test"));
+  Ui.Visit($"/case/{id}");
+  Ui.Click("Add one");                       // a real commit through a real request — so it IS on the trail
+  Assert.Visible("Saved.");
+  // The facts `Changes` hands over, read the way the page's catch reads them.
+  runas (Raj) { Assert.Equal("Ada changed Amount just now", MovedFirst(Case.Changes(id))); }
+}
+
+// ⚠ A TWO-PERSON SEATS SCREEN TEST IS NOT STAGED HERE. One driver is one browser, and a seat taken in the test body
+//   (`runas (Raj) { RecordPresence.For(id).Listen(); }`) lives in the in-process testbed, which forwards PUBLISHES to the
+//   browser's socket but not presence — so the page could never see Raj. The seat logic the strip draws from
+//   (`Colleagues`, `WhoIsHere`) is proven in presence.test.osy.

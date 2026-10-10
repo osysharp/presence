@@ -1,0 +1,10 @@
+// The producer's test project for Osysharp.Presence — a small case desk: staff open cases, see who else has one
+// open, and are told who moved a case first when their save collides; a customer is never in the seat set.
+app CollaborationKitTests {
+  model "model/**/*.osy";
+  tests "**/*.test.osy";
+  use Osysharp.Identity@0;
+  use Osysharp.Presence@0;
+  use Osysharp.Observability;
+  use Osysharp.Ui;
+}

@@ -1,0 +1,40 @@
+namespace Osysharp.Presence;
+
+using Osysharp.Observability;
+
+// ── who moved it first ───────────────────────────────────────────────────────────────────────────────────────────────
+//
+// A `[ConcurrencyCheck]` refusal says THAT somebody got there first. The person in front of the screen wants WHO, WHAT and
+// WHEN — and their own edit kept. `<Entity>.Changes(id)` hands over those facts (field names only, never values, readable
+// by anyone who may read the row), and this turns them into the sentence:
+//
+//     catch (ConflictException e) {
+//       message = MovedFirst(Case.Changes(c.Id), e.Message) + " — your edit is still here.";
+//     }
+
+/// "Ada changed Amount and Owner 2 minutes ago" from the newest change, or `otherwise` when there is no change to name
+/// (a write the trail does not hold). `now` is the moment the sentence is read at — the default is the current time.
+public string MovedFirst(List<EntityChange> changes, string otherwise = "Somebody changed this while you had it open", DateTime? now = null) {
+  if (changes.Count == 0) { return otherwise; }
+  var latest = changes[0];
+  var who = latest.By != "" ? latest.By : "Somebody";
+  var fields = latest.Fields.ToList();
+  var what = fields.Count == 0 ? "this" : (fields.Count == 1 ? fields[0] : string.Join(", ", fields.Take(fields.Count - 1)) + " and " + fields[fields.Count - 1]);
+  return $"{who} changed {what} {Ago(latest.At, now ?? DateTime.UtcNow)}";
+}
+
+/// "Ines took this 2 minutes ago" — the ownership collision: somebody already holds what you were about to take.
+public string TookFirst(string who, DateTime at, string what = "took this", DateTime? now = null) {
+  return $"{(who != "" ? who : "Somebody")} {what} {Ago(at, now ?? DateTime.UtcNow)}";
+}
+
+/// "just now", "a minute ago", "12 minutes ago", "3 hours ago", "on 4 Oct at 14:05".
+public string Ago(DateTime at, DateTime now) {
+  var gap = now - at;
+  if (gap.TotalSeconds < 45) { return "just now"; }
+  if (gap.TotalMinutes < 1.5) { return "a minute ago"; }
+  if (gap.TotalMinutes < 60) { return $"{(int)Math.Round(gap.TotalMinutes)} minutes ago"; }
+  if (gap.TotalHours < 1.5) { return "an hour ago"; }
+  if (gap.TotalHours < 24) { return $"{(int)Math.Round(gap.TotalHours)} hours ago"; }
+  return $"on {at:d MMM} at {at:HH:mm}";
+}

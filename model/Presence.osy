@@ -1,0 +1,54 @@
+namespace Osysharp.Presence;
+
+using Osysharp.Identity;
+
+// ── who is on a record, right now ────────────────────────────────────────────────────────────────────────────────────
+//
+// ⚑ NO SEAT CARRIES WHAT ANYONE WROTE. A seat is who (stamped by the platform from the connection — an app can never
+//   write somebody else's) and an activity word. What changed reaches an open page through the platform's own change
+//   signal and is read THROUGH THE ROW'S RULES (SECURITY-INVARIANT realtime-broadcast-signal-only), so this topic can
+//   never leak a field to a colleague who may not read it.
+
+/// Who may see colleagues on a record, and be seen there. The app's to say — staff, never a customer:
+/// `policy CollaboratesOnRecords => IsStaff;`
+policy CollaboratesOnRecords;
+
+/// One person on a record. `Who` is stamped by the platform with the signed-in caller; `Activity` is what they say they
+/// are doing — "viewing" by default, "replying", "writing a note", "assigning", or the app's own word.
+public class RecordSeat {
+  public Principal? Who;
+  public string Activity = "";
+}
+
+/// The record IS the room: the address is its id, so subscribing is having it open. Staff only, by the app's rule.
+topic RecordPresence(Guid recordId) {
+  Candidates = u => CollaboratesOnRecords;
+  Carries    = RecordSeat;
+  Presence   = true;
+}
+
+/// Say what you are doing on a record — "replying" when a composer opens, "viewing" when it closes. Your seat only:
+/// the platform stamps who you are.
+public void SeatActivity(Guid recordId, string activity) {
+  RecordPresence.For(recordId).Announce(new RecordSeat { Activity = activity });
+}
+
+/// The colleagues on a record now — everyone in its seat set except `me` (pass the viewer to leave them out).
+public List<RecordSeat> Colleagues(List<RecordSeat> here, Guid me) {
+  return here.Where(s => s.Who != null && s.Who.Id != me).ToList();
+}
+
+/// "Rahul is replying", "Rahul and Ines are here", "3 colleagues are here" — one line for a list row or a header.
+/// Empty when nobody else is.
+public string WhoIsHere(List<RecordSeat> colleagues) {
+  if (colleagues.Count == 0) { return ""; }
+  if (colleagues.Count == 1) {
+    var one = colleagues[0];
+    var name = one.Who != null ? one.Who.DisplayName : "Somebody";
+    return one.Activity != "" && one.Activity != "viewing" ? $"{name} is {one.Activity}" : $"{name} is here";
+  }
+  if (colleagues.Count == 2) {
+    return $"{colleagues[0].Who!.DisplayName} and {colleagues[1].Who!.DisplayName} are here";
+  }
+  return $"{colleagues.Count} colleagues are here";
+}

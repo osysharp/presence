@@ -1,0 +1,68 @@
+namespace CollaborationKitTests;
+
+using Osysharp.Presence;
+
+[Title("Cases")]
+[Route("/")]
+[Render(CSR)]
+component Cases() {
+  live var cases = Case.Where(c => c.Amount >= 0);
+  render {
+    Stack(gap: 3, p: 4) {
+      CardTitle("Cases");
+      foreach (var c in cases) {
+        Row(gap: 3, align: Align.Center) {
+          TextLink(label: c.Reference, to: $"/case/{c.Id}");
+          RecordSeatsLine(c.Id);
+        }
+      }
+    }
+  }
+}
+
+/// A case, open: who else is here, and a save that is refused — with the name of whoever moved it first — when
+/// somebody else saved since the page read it.
+[Title("Case")]
+[Route("/case/{id}")]
+[Render(CSR)]
+component CaseEditor(Guid id) {
+  // Read once, as an edit form does: the page holds what it read, and a save over somebody else's newer one is refused.
+  [SuppressWarning("ui-rendered-list-query-not-live")]   // a snapshot on purpose: the save is checked against it
+  var cases = Case.Where(c => c.Id == id).ToList();
+  var message = "";
+
+  action Save(Case c) {
+    try {
+      c.Amount = c.Amount + 1;
+      UnitOfWork.Commit();
+      message = "Saved.";
+    }
+    catch (ConflictException e) {
+      message = WhoMovedIt(c.Id) + " — your edit is still here.";
+    }
+  }
+
+  render {
+    Stack(gap: 3, p: 4) {
+      CardTitle("Case");
+      RecordSeats(id);
+      if (message != "") { Alert(message, tone: Tone.Warning); }
+      foreach (var c in cases) {
+        Row(gap: 3, align: Align.Center) {
+          Text(c.Reference);
+          Text(c.Amount.ToString("N0"));
+          Button(label: "Add one", onPress: () => Save(c));
+        }
+      }
+    }
+  }
+}
+
+/// A colleague's save: reads the row fresh and writes it, in a unit of work of its own.
+void SomebodyElseSaves(Guid id, decimal amount) {
+  var c = Case.Single(x => x.Id == id);
+  c.Amount = amount;
+}
+
+/// The sentence, made on the server: `Changes` reads the platform's trail, field names only.
+string WhoMovedIt(Guid id) { return MovedFirst(Case.Changes(id)); }

@@ -1,0 +1,87 @@
+// Osysharp.Presence — who is on a record. The record's id is the address, the app's `CollaboratesOnRecords` is the
+// door, and a seat is who (stamped by the platform) plus an activity word — never content.
+// SECURITY-INVARIANT(realtime-broadcast-signal-only) for this topic.
+
+using Osysharp.Identity;
+using Osysharp.Presence;
+using CollaborationKitTests;
+
+[TestFixture]
+void Desk() {
+  var ada = new Person { Email = "ada@desk.test", DisplayName = "Ada", CodeHash = Security.HashPassword("1111") };
+  new RoleGrant { Member = ada, Role = DeskRole.Staff };
+  var raj = new Person { Email = "raj@desk.test", DisplayName = "Raj", CodeHash = Security.HashPassword("2222") };
+  new RoleGrant { Member = raj, Role = DeskRole.Staff };
+  var cus = new Person { Email = "cus@customer.test", DisplayName = "Cus", CodeHash = Security.HashPassword("3333") };
+  new RoleGrant { Member = cus, Role = DeskRole.Customer };
+  new Case { Reference = "C-1", Amount = 100 };
+}
+
+principal Ada => Person.Single(p => p.Email == "ada@desk.test");
+principal Raj => Person.Single(p => p.Email == "raj@desk.test");
+principal Cus => Person.Single(p => p.Email == "cus@customer.test");
+
+[Test(Desk)]
+[runas(Ada)]
+void a_records_seats_are_staff_only_by_the_apps_rule() {
+  var id = Case.Single(c => c.Reference == "C-1").Id;
+  // A customer is refused a seat. (A signed-out caller is refused too: the topic is not `[AllowAnonymous]`.)
+  runas (Cus) {
+    Assert.Denied(() => RecordPresence.For(id).Listen());
+    // Announcing decorates YOUR OWN seat, and a refused caller has none — so it puts nobody in the set.
+    SeatActivity(id, "viewing");
+  }
+  // ⭐ THE COUNTERPART — staff are admitted, so the refusal above is the rule, not a topic that refuses everybody.
+  runas (Ada) {
+    RecordPresence.For(id).Listen();
+    var here = RecordPresence.For(id).Here;
+    Assert.Equal(1, here.Count);
+    Assert.Equal("Ada", here[0].Who!.DisplayName);
+  }
+}
+
+[Test(Desk)]
+[runas(Ada)]
+void a_seat_says_who_and_what_they_are_doing_and_who_is_stamped_by_the_platform() {
+  var id = Case.Single(c => c.Reference == "C-1").Id;
+  var raj = Person.Single(p => p.Email == "raj@desk.test");
+  runas (Ada) {
+    RecordPresence.For(id).Listen();
+    // `Who` is not hers to write — `new RecordSeat { Who = raj, … }` is refused at compile ("filled in by the
+    // platform"). She announces an activity; the platform stamps who is announcing.
+    RecordPresence.For(id).Announce(new RecordSeat { Activity = "replying" });
+  }
+  runas (Raj) { RecordPresence.For(id).Listen(); }
+
+  runas (Raj) {
+    var here = RecordPresence.For(id).Here;
+    Assert.Equal(2, here.Count);
+    var adaSeat = here.Single(s => s.Activity == "replying");
+    Assert.Equal("Ada", adaSeat.Who!.DisplayName);
+    // Raj, reading the set, is told about Ada and not about himself.
+    var others = Colleagues(here, raj.Id);
+    Assert.Equal(1, others.Count);
+    Assert.Equal("Ada is replying", WhoIsHere(others));
+  }
+}
+
+[Test(Desk)]
+[runas(Ada)]
+void a_seat_carries_an_activity_and_never_what_anybody_wrote() {
+  var c = Case.Single(x => x.Reference == "C-1");
+  runas (Ada) {
+    RecordPresence.For(c.Id).Listen();
+    SeatActivity(c.Id, "writing a note");
+  }
+  // The seat type has exactly two members — who and an activity word. A note's text has nowhere to ride.
+  runas (Raj) {
+    RecordPresence.For(c.Id).Listen();
+    var seat = RecordPresence.For(c.Id).Here.Single(s => s.Who != null && s.Who.DisplayName == "Ada");
+    Assert.Equal("writing a note", seat.Activity);
+  }
+}
+
+[Test]
+void one_line_for_a_list_row() {
+  Assert.Equal("", WhoIsHere(new List<RecordSeat>()));
+}

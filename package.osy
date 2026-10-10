@@ -1,0 +1,26 @@
+// Osysharp.Presence — who else is on this record, right now, and the sentence that names whoever moved it first.
+//
+// A record's PRESENCE is a topic addressed by the record's id: being subscribed IS "I have it open", so there is nothing
+// to post and nothing to clean up — the platform adds and removes a seat with the CONNECTION, and stamps who sits in it.
+// A seat carries who and what they are doing ("viewing", "replying", "assigning") and NEVER what anybody wrote
+// (SECURITY-INVARIANT realtime-broadcast-signal-only). Any record: a ticket, a case, an approval, a lead — the kit never
+// knows which entity, only its id.
+//
+// ⚑ THE APP SAYS ONE THING — who may see colleagues on a record (and be seen there):
+//     policy CollaboratesOnRecords => IsStaff;
+//   A customer, a requester or a visitor is never in the seat set unless the app says so.
+//
+// WHAT ELSE: `RecordSeats(id)` draws the seats on the Switchboard floor (a lamp per colleague, lit while they act, the
+// viewer left out); `MovedFirst(changes)` turns a concurrency refusal into the app's own sentence — "Ada changed Amount
+// 2 minutes ago" — from the facts `<Entity>.Changes(id)` hands over, field names only, never values.
+package Osysharp.Presence {
+  version "0.1.2";
+  minPlatform "0.9.0";
+  summary     "who else is on a record, live — a presence topic addressed by any record's id, staff-only by the app's own rule, each seat stamped with who by the platform and carrying an activity (viewing, replying, assigning) but never content; a seats strip for the record's header; and the 'moved first' sentence that turns a concurrency refusal into who changed which fields and when.";
+  model "model/**/*.osy";
+  use Osysharp.Identity@0;
+  // `Changes` — who moved a row, field names only — is the Observability capability's read.
+  use Osysharp.Observability;
+  use Osysharp.Ui;
+  tests "tests";
+}

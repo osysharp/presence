@@ -1,0 +1,40 @@
+namespace Osysharp.Presence;
+
+using Osysharp.Identity;
+
+/// Who else has this record open, and what they are doing — for a record's header. Puts the viewer in the seat set as
+/// `activity` when it mounts (so having the page open IS being here), then draws each colleague as an initial and a
+/// line: a lamp that is lit while they act ("replying", "assigning") and dark while they only look. The viewer is left
+/// out — nobody needs to be told they are here. Draws nothing when nobody else is.
+[Composable]
+public component RecordSeats(Guid recordId, string activity = "viewing") {
+  live var here = RecordPresence.For(recordId).Here;
+  on mount { RecordPresence.For(recordId).Announce(new RecordSeat { Activity = activity }); }
+
+  render {
+    Row(gap: 3, align: Align.Center, label: "Who else is here") {
+      foreach (var seat in Colleagues(here, Session.CurrentUser?.Id ?? Guid.Empty)) {
+        Row(gap: 1, align: Align.Center) {
+          Lamp(live: seat.Activity != "" && seat.Activity != "viewing");
+          Text(seat.Activity != "" && seat.Activity != "viewing" ? $"{seat.Who!.DisplayName} — {seat.Activity}" : seat.Who!.DisplayName,
+               color: Colors.TextMuted, fontSize: FontSize.Caption);
+        }
+      }
+    }
+  }
+}
+
+/// The same seats, folded into one short line for a list row ("Rahul is replying"). Reads the set; announces nothing —
+/// a list row is not having the record open.
+[Composable]
+public component RecordSeatsLine(Guid recordId) {
+  live var here = RecordPresence.For(recordId).Here;
+  render {
+    if (WhoIsHere(Colleagues(here, Session.CurrentUser?.Id ?? Guid.Empty)) != "") {
+      Row(gap: 1, align: Align.Center) {
+        Lamp(live: true);
+        Text(WhoIsHere(Colleagues(here, Session.CurrentUser?.Id ?? Guid.Empty)), color: Colors.TextMuted, fontSize: FontSize.Caption);
+      }
+    }
+  }
+}
