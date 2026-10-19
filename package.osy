@@ -14,8 +14,8 @@
 // viewer left out); `MovedFirst(changes)` turns a concurrency refusal into the app's own sentence — "Ada changed Amount
 // 2 minutes ago" — from the facts `<Entity>.Changes(id)` hands over, field names only, never values.
 package Osysharp.Presence {
-  version "0.1.2";
-  minPlatform "0.9.0";
+  version "0.2.0";
+  minPlatform "0.14.0";
   summary     "who else is on a record, live — a presence topic addressed by any record's id, staff-only by the app's own rule, each seat stamped with who by the platform and carrying an activity (viewing, replying, assigning) but never content; a seats strip for the record's header; and the 'moved first' sentence that turns a concurrency refusal into who changed which fields and when.";
   model "model/**/*.osy";
   use Osysharp.Identity@0;
