@@ -74,3 +74,78 @@ SeatActivity(ticket.Id, "replying");
 
 The kit's test app is a small case desk: `presence.test.osy` (staff only, who is stamped, an activity and never
 content), `conflicts.test.osy` (the refusal through the screen, the sentence from the trail).
+
+## Examples
+
+Taken from this package's own tests, which compile and run on every release.
+
+```osy
+using CollaborationKitTests;
+
+[Test(Desk)]
+void the_sign_in_admits_a_right_code_and_refuses_everything_else() {
+  Assert.NotEqual("", SignInWithCode("ada@desk.test", "1111"));
+  Assert.Equal("", SignInWithCode("ada@desk.test", "9999"));
+  Assert.Equal("", SignInWithCode("nobody@desk.test", "1111"));
+}
+```
+
+From [`tests/auth.test.osy`](tests/auth.test.osy).
+
+```osy
+using Osysharp.Identity;
+using Osysharp.Presence;
+using Osysharp.Observability;
+using CollaborationKitTests;
+
+[Test]
+void the_sentence_names_who_which_fields_and_how_long_ago() {
+  var now = new DateTime(2026, 10, 1, 12, 0, 0);
+  Assert.Equal("just now", Ago(now.AddSeconds(-10), now));
+  Assert.Equal("a minute ago", Ago(now.AddSeconds(-70), now));
+  Assert.Equal("12 minutes ago", Ago(now.AddMinutes(-12), now));
+  Assert.Equal("3 hours ago", Ago(now.AddHours(-3), now));
+  Assert.Equal("Ines took this 2 minutes ago", TookFirst("Ines", now.AddMinutes(-2), now: now));
+  Assert.Equal("Somebody took this just now", TookFirst("", now, now: now));
+}
+```
+
+From [`tests/conflicts.test.osy`](tests/conflicts.test.osy).
+
+```osy
+using Osysharp.Identity;
+using Osysharp.Presence;
+using CollaborationKitTests;
+
+[Test(Desk)]
+[runas(Ada)]
+void a_records_seats_are_staff_only_by_the_apps_rule() {
+  var id = Case.Single(c => c.Reference == "C-1").Id;
+  // A customer is refused a seat. (A signed-out caller is refused too: the topic is not `[AllowAnonymous]`.)
+  runas (Cus) {
+    Assert.Denied(() => RecordPresence.For(id).Listen());
+    // Announcing decorates YOUR OWN seat, and a refused caller has none — so it puts nobody in the set.
+    SeatActivity(id, "viewing");
+  }
+  // ⭐ THE COUNTERPART — staff are admitted, so the refusal above is the rule, not a topic that refuses everybody.
+  runas (Ada) {
+    RecordPresence.For(id).Listen();
+    var here = RecordPresence.For(id).Here;
+    Assert.Equal(1, here.Count);
+    Assert.Equal("Ada", here[0].Who!.DisplayName);
+  }
+}
+```
+
+From [`tests/presence.test.osy`](tests/presence.test.osy).
+
+## Learn more
+
+- [The Osysharp.Presence reference](https://osysharp.com/reference/realtime/collaboration-kit/)
+- [Osysharp.Presence in the package catalogue](https://osysharp.com/packages/#osysharp-presence)
+- [The Osy# reference](https://osysharp.com/reference/) — the language, the runtime and every kit
+- [`llms-full.txt`](https://osysharp.com/llms-full.txt) — the whole reference and specification as one Markdown file, for a coding agent
+
+## Licence
+
+MIT — see [`LICENSE`](LICENSE).
